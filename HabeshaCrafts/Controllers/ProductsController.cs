@@ -7,6 +7,7 @@ using System.Net;
 using System.Web;
 using System.Web.Mvc;
 using HabeshaCrafts.Models;
+using HabeshaCrafts.ViewModels;
 
 namespace HabeshaCrafts.Controllers
 {
@@ -15,14 +16,51 @@ namespace HabeshaCrafts.Controllers
         private HabeshaCraftsContext db = new HabeshaCraftsContext();
 
         // GET: Products
-        public ActionResult Index(string category)
+        public ActionResult Index(string category, string search)
         {
             var products = db.Products.Include(p => p.Category);
+            var viewModel = new ProductIndexVeiwModel();
+
+            // perform the search and save the search string to the viewModel
+            if (!String.IsNullOrEmpty(search))
+            {
+                products = products.Where(p => p.Name.Contains(search) ||
+                                               p.Description.Contains(search) ||
+                                               p.Category.Name.Contains(search));
+                viewModel.Search = search;
+            }
+
+            //group search results into categories and count how many items in category
+            viewModel.CategoryWithCounts = from matchingProducts in products
+                                            where matchingProducts.CategoryId != null
+                                            group matchingProducts by matchingProducts.Category.Name
+                                            into categoryGroup
+                                            select new CategoryWithCount()
+                                            {
+                                                CategoryName = categoryGroup.Key,
+                                                ProductCount = categoryGroup.Count()
+                                            };
+                
+            
+            // Alternatively the above query can be rewritten as 
+            /*    
+            products.Where(matchingProducts => matchingProducts.CategoryId != null)
+                                              .GroupBy(matchingProducts => matchingProducts.Category.Name)
+                                              .Select(categoryGroup => new CategoryWithCount()
+                                              {
+                                                    CategoryName = categoryGroup.Key,
+                                                    ProductCount = categoryGroup.Count()
+                                              });
+            */
 
             if (!String.IsNullOrEmpty(category))
+            {
                 products = products.Where(p => p.Category.Name == category);
+            }
 
-            return View(products.ToList());
+            viewModel.Products = products;
+
+            return View(viewModel);
         }
 
         // GET: Products/Details/5
